@@ -34,14 +34,16 @@ var __generator = (this && this.__generator) || function (thisArg, body) {
         if (op[0] & 5) throw op[1]; return { value: op[0] ? op[1] : void 0, done: true };
     }
 };
+/// <reference path="./online-streaming-provider.d.ts" />
 var Provider = /** @class */ (function () {
     function Provider() {
-        this.KODIK_TOKEN = "8e329159687fc1a2f5af99a50bf57070";
-        this.BASE_URL = "https://kodikapi.com";
+        this.ANIMEGO_BASE = "https://animego.me";
+        this.PLAYER_API = "https://plapi.cdnvideohub.com/api/v1/player/sv";
+        this.USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36";
     }
     Provider.prototype.getSettings = function () {
         return {
-            episodeServers: ["Kodik"],
+            episodeServers: ["AnimeGo"],
             supportsDub: true,
         };
     };
@@ -52,31 +54,33 @@ var Provider = /** @class */ (function () {
                 switch (_a.label) {
                     case 0:
                         _a.trys.push([0, 3, , 4]);
-                        url = "".concat(this.BASE_URL, "/search?token=").concat(this.KODIK_TOKEN, "&title=").concat(encodeURIComponent(opts.query), "&types=anime,anime-serial&with_material_data=true&limit=20");
-                        return [4 /*yield*/, fetch(url)];
+                        url = "".concat(this.ANIMEGO_BASE, "/api/v2/quick_search?q=").concat(encodeURIComponent(opts.query));
+                        return [4 /*yield*/, fetch(url, {
+                                headers: {
+                                    "X-Requested-With": "XMLHttpRequest",
+                                    "Referer": this.ANIMEGO_BASE + "/",
+                                    "User-Agent": this.USER_AGENT
+                                }
+                            })];
                     case 1:
                         response = _a.sent();
                         return [4 /*yield*/, response.json()];
                     case 2:
                         data = _a.sent();
-                        if (!data.results || data.results.length === 0)
+                        if (!data || !data.data)
                             return [2 /*return*/, []];
-                        return [2 /*return*/, data.results.map(function (item) {
+                        return [2 /*return*/, data.data.map(function (item) {
                                 var _a;
-                                var displayTitle = item.title;
-                                if (item.translation && item.translation.title) {
-                                    displayTitle += " [".concat(item.translation.title, "]");
-                                }
                                 return {
-                                    id: item.id,
-                                    title: displayTitle,
+                                    id: String(item.id),
+                                    title: "".concat(item.title, " / ").concat(item.original_title, " (").concat(item.year, ")"),
                                     url: item.link,
                                     subOrDub: ((_a = item.translation) === null || _a === void 0 ? void 0 : _a.type) === "voice" ? "dub" : "sub",
                                 };
                             })];
                     case 3:
                         e_1 = _a.sent();
-                        console.error("Kodik Search Error:", e_1);
+                        console.error("AnimeGo Search Error:", e_1);
                         return [2 /*return*/, []];
                     case 4: return [2 /*return*/];
                 }
@@ -85,48 +89,69 @@ var Provider = /** @class */ (function () {
     };
     Provider.prototype.findEpisodes = function (id) {
         return __awaiter(this, void 0, void 0, function () {
-            var url, response, data, item, episodes, seasonNum, season, episodeNum, epLink, e_2;
+            var url, response, data, episodes_1, parsePlaylist_1, e_2;
+            var _this = this;
             return __generator(this, function (_a) {
                 switch (_a.label) {
                     case 0:
                         _a.trys.push([0, 3, , 4]);
-                        url = "".concat(this.BASE_URL, "/search?token=").concat(this.KODIK_TOKEN, "&id=").concat(id, "&with_episodes=true");
-                        return [4 /*yield*/, fetch(url)];
+                        url = "".concat(this.PLAYER_API, "/playlist?pub=747&aggr=mali&id=").concat(id);
+                        return [4 /*yield*/, fetch(url, {
+                                headers: {
+                                    "Accept": "application/json, text/plain, */*",
+                                    "Accept-Language": "ru-RU,ru;q=0.8,en-US;q=0.5,en;q=0.3",
+                                    "Origin": this.ANIMEGO_BASE,
+                                    "Referer": this.ANIMEGO_BASE + "/",
+                                    "User-Agent": this.USER_AGENT
+                                }
+                            })];
                     case 1:
                         response = _a.sent();
                         return [4 /*yield*/, response.json()];
                     case 2:
                         data = _a.sent();
-                        if (!data.results || data.results.length === 0)
-                            return [2 /*return*/, []];
-                        item = data.results[0];
-                        episodes = [];
-                        if (item.seasons) {
-                            for (seasonNum in item.seasons) {
-                                season = item.seasons[seasonNum];
-                                for (episodeNum in season.episodes) {
-                                    epLink = season.episodes[episodeNum];
-                                    episodes.push({
-                                        id: epLink,
-                                        number: parseInt(episodeNum),
-                                        title: "\u0421\u0435\u0440\u0438\u044F ".concat(episodeNum),
-                                        url: epLink
-                                    });
+                        episodes_1 = [];
+                        parsePlaylist_1 = function (obj, seasonPrefix) {
+                            if (seasonPrefix === void 0) { seasonPrefix = ""; }
+                            if (Array.isArray(obj)) {
+                                obj.forEach(function (item, index) {
+                                    if (typeof item === 'object' && item.id) {
+                                        episodes_1.push({
+                                            id: String(item.id), // This is the unitedVideoId
+                                            number: item.episode ? parseInt(item.episode) : index + 1,
+                                            title: item.title || "".concat(seasonPrefix, "Episode ").concat(index + 1),
+                                            url: "".concat(_this.PLAYER_API, "/video/").concat(item.id)
+                                        });
+                                    }
+                                });
+                            }
+                            else if (typeof obj === 'object') {
+                                for (var key in obj) {
+                                    var val = obj[key];
+                                    // Check if key is a season number (digits)
+                                    if (/^\d+$/.test(key)) {
+                                        // If value is string/number, it's likely an episode ID in a flat list or season list
+                                        if (typeof val === 'string' || typeof val === 'number') {
+                                            episodes_1.push({
+                                                id: String(val),
+                                                number: parseInt(key),
+                                                title: "".concat(seasonPrefix, "Episode ").concat(key),
+                                                url: "".concat(_this.PLAYER_API, "/video/").concat(val)
+                                            });
+                                        }
+                                        else {
+                                            // Recursive for seasons
+                                            parsePlaylist_1(val, "Season ".concat(key, " "));
+                                        }
+                                    }
                                 }
                             }
-                        }
-                        else {
-                            episodes.push({
-                                id: item.link,
-                                number: 1,
-                                title: "Фильм",
-                                url: item.link
-                            });
-                        }
-                        return [2 /*return*/, episodes.sort(function (a, b) { return a.number - b.number; })];
+                        };
+                        parsePlaylist_1(data);
+                        return [2 /*return*/, episodes_1];
                     case 3:
                         e_2 = _a.sent();
-                        console.error("Kodik Episodes Error:", e_2);
+                        console.error("AnimeGo Episodes Error:", e_2);
                         return [2 /*return*/, []];
                     case 4: return [2 /*return*/];
                 }
@@ -135,228 +160,68 @@ var Provider = /** @class */ (function () {
     };
     Provider.prototype.findEpisodeServer = function (episode, _server) {
         return __awaiter(this, void 0, void 0, function () {
-            var fetchUrl, html, params, subtitles, links, videoSources, e_3;
-            return __generator(this, function (_a) {
-                switch (_a.label) {
+            var url, response, data, videoSources, s, qualityMap, _i, _a, _b, key, quality, e_3;
+            return __generator(this, function (_c) {
+                switch (_c.label) {
                     case 0:
-                        _a.trys.push([0, 4, , 5]);
-                        fetchUrl = episode.id.startsWith("//") ? "https:" + episode.id : episode.id;
-                        return [4 /*yield*/, this.fetchPlayerPage(fetchUrl)];
-                    case 1:
-                        html = _a.sent();
-                        params = this.parseParameters(html);
-                        subtitles = this.extractSubtitles(html);
-                        return [4 /*yield*/, this.getStreamLinks(params, fetchUrl)];
-                    case 2:
-                        links = _a.sent();
-                        return [4 /*yield*/, this.processLinks(links, subtitles)];
-                    case 3:
-                        videoSources = _a.sent();
-                        return [2 /*return*/, {
-                                server: _server,
+                        _c.trys.push([0, 3, , 4]);
+                        url = "".concat(this.PLAYER_API, "/video/").concat(episode.id);
+                        return [4 /*yield*/, fetch(url, {
                                 headers: {
-                                    "Referer": "https://kodik.info/",
-                                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-                                },
-                                videoSources: videoSources
-                            }];
-                    case 4:
-                        e_3 = _a.sent();
-                        console.error("Kodik GetSources Error:", e_3);
-                        throw new Error(e_3 instanceof Error ? e_3.message : "Unknown error");
-                    case 5: return [2 /*return*/];
-                }
-            });
-        });
-    };
-    Provider.prototype.fetchPlayerPage = function (url) {
-        return __awaiter(this, void 0, void 0, function () {
-            var response;
-            return __generator(this, function (_a) {
-                switch (_a.label) {
-                    case 0: return [4 /*yield*/, fetch(url, {
-                            headers: {
-                                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-                            }
-                        })];
-                    case 1:
-                        response = _a.sent();
-                        if (!response.ok)
-                            throw new Error("Failed to fetch player: ".concat(response.status));
-                        return [2 /*return*/, response.text()];
-                }
-            });
-        });
-    };
-    Provider.prototype.parseParameters = function (html) {
-        var extract = function (key) { var _a; return (_a = html.match(new RegExp("var\\s+".concat(key, "\\s*=\\s*[\"']([^\"']*)[\"']")))) === null || _a === void 0 ? void 0 : _a[1]; };
-        var extractInfo = function (key) { var _a; return (_a = html.match(new RegExp("videoInfo\\.".concat(key, "\\s*=\\s*[\"']([^\"']*)[\"']")))) === null || _a === void 0 ? void 0 : _a[1]; };
-        var params = {
-            domain: extract("domain"),
-            d_sign: extract("d_sign"),
-            pd: extract("pd"),
-            pd_sign: extract("pd_sign"),
-            ref: extract("ref"),
-            ref_sign: extract("ref_sign"),
-            type: extractInfo("type"),
-            hash: extractInfo("hash"),
-            id: extractInfo("id"),
-        };
-        if (!params.domain || !params.d_sign || !params.pd || !params.pd_sign || !params.type || !params.hash || !params.id) {
-            throw new Error("Kodik protection parameters not found");
-        }
-        return params;
-    };
-    Provider.prototype.extractSubtitles = function (html) {
-        var subtitles = [];
-        var trackRegex = /<track[^>]+src=([^ >]+)[^>]*label="([^"]+)"[^>]*srclang="([^"]+)"[^>]*(default)?/gi;
-        var trackMatch;
-        while ((trackMatch = trackRegex.exec(html)) !== null) {
-            var src = trackMatch[1], label = trackMatch[2], lang = trackMatch[3], isDefault = trackMatch[4];
-            subtitles.push({
-                id: lang,
-                url: src,
-                language: label.replace(/_/g, " ").replace(/\[(.*?)]/g, "($1)").replace(/\s+/g, " ").trim(),
-                isDefault: Boolean(isDefault),
-            });
-        }
-        return subtitles;
-    };
-    Provider.prototype.getStreamLinks = function (params, referer) {
-        return __awaiter(this, void 0, void 0, function () {
-            var ftorUrl, postParams, response, data;
-            return __generator(this, function (_a) {
-                switch (_a.label) {
-                    case 0:
-                        ftorUrl = "https://".concat(params.pd, "/ftor");
-                        postParams = new URLSearchParams();
-                        postParams.append("d", params.domain);
-                        postParams.append("d_sign", params.d_sign);
-                        postParams.append("pd", params.pd);
-                        postParams.append("pd_sign", params.pd_sign);
-                        postParams.append("ref", params.ref || "");
-                        postParams.append("ref_sign", params.ref_sign || "");
-                        postParams.append("bad_user", "true");
-                        postParams.append("cdn_is_working", "true");
-                        postParams.append("info", JSON.stringify({ advImps: {} }));
-                        postParams.append("type", params.type);
-                        postParams.append("hash", params.hash);
-                        postParams.append("id", params.id);
-                        return [4 /*yield*/, fetch(ftorUrl, {
-                                method: "POST",
-                                headers: {
-                                    "Content-Type": "application/x-www-form-urlencoded",
-                                    "Referer": referer,
-                                    "X-Requested-With": "XMLHttpRequest",
-                                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-                                },
-                                body: postParams
+                                    "Accept": "application/json, text/plain, */*",
+                                    "Accept-Language": "ru-RU,ru;q=0.8,en-US;q=0.5,en;q=0.3",
+                                    "Origin": this.ANIMEGO_BASE,
+                                    "Referer": this.ANIMEGO_BASE + "/",
+                                    "User-Agent": this.USER_AGENT
+                                }
                             })];
                     case 1:
-                        response = _a.sent();
+                        response = _c.sent();
                         return [4 /*yield*/, response.json()];
                     case 2:
-                        data = _a.sent();
-                        if (!data.links)
-                            throw new Error("Kodik decoder returned no links");
-                        return [2 /*return*/, data.links];
-                }
-            });
-        });
-    };
-    Provider.prototype.decodeUrl = function (src) {
-        var rot13 = function (str) { return str.replace(/[a-zA-Z]/g, function (char) {
-            var c = char.charCodeAt(0);
-            var base = c <= 90 ? 90 : 122;
-            return String.fromCharCode(c + 13 <= base ? c + 13 : c - 13);
-        }); };
-        var isUrl = function (s) { return s.startsWith("//") || s.startsWith("http"); };
-        var normalize = function (s) { return s.startsWith("//") ? "https:" + s : s; };
-        if (isUrl(src))
-            return normalize(src);
-        var r = rot13(src);
-        if (isUrl(r))
-            return normalize(r);
-        try {
-            var b64 = atob(src);
-            if (isUrl(b64))
-                return normalize(b64);
-        }
-        catch (_a) { }
-        try {
-            var rb64 = atob(r);
-            if (isUrl(rb64))
-                return normalize(rb64);
-        }
-        catch (_b) { }
-        try {
-            var b64r = rot13(atob(src));
-            if (isUrl(b64r))
-                return normalize(b64r);
-        }
-        catch (_c) { }
-        return src;
-    };
-    Provider.prototype.processLinks = function (links, subtitles) {
-        return __awaiter(this, void 0, void 0, function () {
-            var sources, m3u8Link, key, arr, decoded, m3u8Content, resolutionRegex, match, _a, key, arr;
-            var _b, _c;
-            return __generator(this, function (_d) {
-                switch (_d.label) {
-                    case 0:
-                        sources = [];
-                        m3u8Link = null;
-                        for (key in links) {
-                            arr = links[key];
-                            if ((_b = arr === null || arr === void 0 ? void 0 : arr[0]) === null || _b === void 0 ? void 0 : _b.src) {
-                                decoded = this.decodeUrl(arr[0].src);
-                                if (decoded.includes(".m3u8")) {
-                                    m3u8Link = decoded;
-                                    break;
+                        data = _c.sent();
+                        videoSources = [];
+                        if (data && data.sources) {
+                            s = data.sources;
+                            // HLS
+                            if (s.hlsUrl) {
+                                videoSources.push({
+                                    url: s.hlsUrl,
+                                    quality: "auto",
+                                    type: "m3u8"
+                                });
+                            }
+                            qualityMap = {
+                                "mpegFullHdUrl": "1080p",
+                                "mpegHighUrl": "720p",
+                                "mpegMediumUrl": "480p",
+                                "mpegLowUrl": "360p",
+                                "mpegLowestUrl": "240p"
+                            };
+                            for (_i = 0, _a = Object.entries(qualityMap); _i < _a.length; _i++) {
+                                _b = _a[_i], key = _b[0], quality = _b[1];
+                                if (s[key]) {
+                                    videoSources.push({
+                                        url: s[key],
+                                        quality: quality,
+                                        type: "mp4"
+                                    });
                                 }
                             }
                         }
-                        if (!m3u8Link) return [3 /*break*/, 5];
-                        _d.label = 1;
-                    case 1:
-                        _d.trys.push([1, 3, , 4]);
-                        return [4 /*yield*/, fetch(m3u8Link, { headers: { "Referer": "https://kodik.info/" } }).then(function (r) { return r.text(); })];
-                    case 2:
-                        m3u8Content = _d.sent();
-                        resolutionRegex = /#EXT-X-STREAM-INF:[^\n]*RESOLUTION=\d+x(\d+)/g;
-                        match = void 0;
-                        while ((match = resolutionRegex.exec(m3u8Content)) !== null) {
-                            sources.push({
-                                url: m3u8Link,
-                                quality: "".concat(match[1], "p"),
-                                type: "m3u8",
-                                subtitles: subtitles.length ? subtitles : undefined
-                            });
-                        }
-                        return [3 /*break*/, 4];
+                        return [2 /*return*/, {
+                                server: _server,
+                                headers: {
+                                    "Referer": this.ANIMEGO_BASE + "/",
+                                    "User-Agent": this.USER_AGENT
+                                },
+                                videoSources: videoSources
+                            }];
                     case 3:
-                        _a = _d.sent();
-                        return [3 /*break*/, 4];
-                    case 4:
-                        if (sources.length === 0) {
-                            sources.push({ url: m3u8Link, quality: "auto", type: "m3u8", subtitles: subtitles.length ? subtitles : undefined });
-                        }
-                        return [3 /*break*/, 6];
-                    case 5:
-                        // Fallback to MP4
-                        for (key in links) {
-                            arr = links[key];
-                            if ((_c = arr === null || arr === void 0 ? void 0 : arr[0]) === null || _c === void 0 ? void 0 : _c.src) {
-                                sources.push({
-                                    url: this.decodeUrl(arr[0].src),
-                                    quality: key + "p",
-                                    type: "mp4",
-                                    subtitles: subtitles.length ? subtitles : undefined
-                                });
-                            }
-                        }
-                        _d.label = 6;
-                    case 6: return [2 /*return*/, sources];
+                        e_3 = _c.sent();
+                        console.error("AnimeGo GetSources Error:", e_3);
+                        throw new Error(e_3 instanceof Error ? e_3.message : "Unknown error");
+                    case 4: return [2 /*return*/];
                 }
             });
         });
