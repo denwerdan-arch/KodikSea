@@ -6,13 +6,14 @@
   "language": "typescript",
   "type": "onlinestream-provider",
   "description": "Просмотр аниме через API Anilibria v3",
-  "author": "User",
+  "author": "Dead_wall",
   "icon": "https://anilibria.tv/img/logo.png",
   "website": "https://anilibria.tv",
   "lang": "ru",
   "payloadURI": "https://raw.githubusercontent.com/denwerdan-arch/KodikSea/main/anilibria.ts",
   "isDevelopment": false
 }
+
 
 
 
