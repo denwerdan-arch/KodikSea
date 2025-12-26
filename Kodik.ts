@@ -1,123 +1,125 @@
-// Определяем интерфейсы Seanime (они не импортируются, а декларируются в среде)
+type SubOrDub = "sub" | "dub" | "both";
+type VideoSourceType = "mp4" | "m3u8";
+
+interface SearchOptions {
+    query: string;
+}
+
 interface SearchResult {
     id: string;
     title: string;
     url: string;
-    cover?: string;
-    year?: number;
-    subbed?: boolean;
-    dubbed?: boolean;
-    metadata?: any;
+    subOrDub: SubOrDub;
 }
 
-interface Episode {
+interface EpisodeDetails {
     id: string;
     number: number;
     title: string;
     url: string;
-    image?: string;
+}
+
+interface VideoSubtitle {
+    id: string;
+    url: string;
+    language: string;
+    isDefault: boolean;
 }
 
 interface VideoSource {
     url: string;
-    quality: string; // "1080p", "720p", "auto"
-    format: "mp4" | "m3u8";
-    headers?: Record<string, string>;
+    type: VideoSourceType;
+    quality: string;
+    subtitles?: VideoSubtitle[];
 }
 
-// ----------------------------------------------------------------------
-// КОНФИГУРАЦИЯ
-// ----------------------------------------------------------------------
-const KODIK_TOKEN = "8e329159687fc1a2f5af99a50bf57070"; // Публичный токен (Kodik/AnimeGo)
-const BASE_URL = "https://kodikapi.com";
+interface EpisodeServer {
+    server: string;
+    headers: Record<string, string>;
+    videoSources: VideoSource[];
+}
 
-export default class KodikProvider {
+interface Settings {
+    episodeServers: string[];
+    supportsDub: boolean;
+}
 
-    // 1. ПОИСК АНИМЕ
-    // Seanime вызывает этот метод, когда пользователь ищет тайтл
-    async search(query: string): Promise<SearchResult[]> {
+interface KodikParams {
+    domain: string;
+    d_sign: string;
+    pd: string;
+    pd_sign: string;
+    ref: string;
+    ref_sign: string;
+    type: string;
+    hash: string;
+    id: string;
+}
+
+class Provider {
+    private readonly KODIK_TOKEN = "8e329159687fc1a2f5af99a50bf57070";
+    private readonly BASE_URL = "https://kodikapi.com";
+
+    getSettings(): Settings {
+        return {
+            episodeServers: ["Kodik"],
+            supportsDub: true,
+        };
+    }
+
+    async search(opts: SearchOptions): Promise<SearchResult[]> {
         try {
-            // Kodik ищет лучше, если искать по "title" или "original_title"
-            // Используем эндпоинт /search
-            const url = `${BASE_URL}/search?token=${KODIK_TOKEN}&title=${encodeURIComponent(query)}&types=anime,anime-serial&with_material_data=true&limit=20`;
+            const url = `${this.BASE_URL}/search?token=${this.KODIK_TOKEN}&title=${encodeURIComponent(opts.query)}&types=anime,anime-serial&with_material_data=true&limit=20`;
             
             const response = await fetch(url);
             const data = await response.json();
 
             if (!data.results || data.results.length === 0) return [];
 
-            const results: SearchResult[] = [];
-            
-            // Kodik возвращает каждую озвучку как отдельный результат. 
-            // Это хорошо для Seanime, пользователь выберет нужную озвучку сразу.
-            for (const item of data.results) {
-                // Формируем красивое название: "Наруто [Anilibria]"
+            return data.results.map((item: any) => {
                 let displayTitle = item.title;
                 if (item.translation && item.translation.title) {
                     displayTitle += ` [${item.translation.title}]`;
                 }
-
-                results.push({
-                    id: item.id, // ID релиза в базе Kodik (например "serial-12345")
+                return {
+                    id: item.id,
                     title: displayTitle,
-                    url: item.link, // Ссылка на плеер
-                    cover: item.material_data?.poster_url || "",
-                    year: item.year,
-                    dubbed: item.translation?.type === "voice",
-                    subbed: item.translation?.type === "subtitles",
-                    // Сохраняем важные данные для следующего шага
-                    metadata: {
-                        shikimori_id: item.shikimori_id,
-                        link: item.link
-                    }
-                });
-            }
-
-            return results;
-
+                    url: item.link,
+                    subOrDub: item.translation?.type === "voice" ? "dub" : "sub",
+                };
+            });
         } catch (e) {
             console.error("Kodik Search Error:", e);
             return [];
         }
     }
 
-    // 2. ПОЛУЧЕНИЕ СПИСКА ЭПИЗОДОВ
-    // Вызывается при клике на результат поиска
-    async getEpisodes(id: string): Promise<Episode[]> {
+    async findEpisodes(id: string): Promise<EpisodeDetails[]> {
         try {
-            // Для Kodik нам не нужно делать новый запрос к API, если мы сохранили ссылку в search.
-            // Но Seanime передает только ID. Поэтому делаем запрос к /search по ID.
-            
-            // Если ID начинается с "serial-" или "movie-", ищем конкретный релиз
-            const url = `${BASE_URL}/search?token=${KODIK_TOKEN}&id=${id}&with_episodes=true`;
+            const url = `${this.BASE_URL}/search?token=${this.KODIK_TOKEN}&id=${id}&with_episodes=true`;
             
             const response = await fetch(url);
             const data = await response.json();
             
             if (!data.results || data.results.length === 0) return [];
             
-            const item = data.results[0]; // Kodik возвращает массив, берем первый элемент
-            const episodes: Episode[] = [];
+            const item = data.results[0];
+            const episodes: EpisodeDetails[] = [];
 
-            // Если это сериал
             if (item.seasons) {
-                // Kodik возвращает структуру { "1": { "1": "link", "2": "link" } } (сезон -> серия -> ссылка)
                 for (const seasonNum in item.seasons) {
                     const season = item.seasons[seasonNum];
                     for (const episodeNum in season.episodes) {
-                        const epLink = season.episodes[episodeNum]; // Это ссылка на плеер для конкретной серии!
-                        
+                        const epLink = season.episodes[episodeNum];
                         episodes.push({
-                            id: epLink, // Используем ссылку как ID эпизода, это упростит extract
+                            id: epLink,
                             number: parseInt(episodeNum),
                             title: `Серия ${episodeNum}`,
                             url: epLink
                         });
                     }
                 }
-            } 
-            // Если это фильм
-            else {
+            } else {
                 episodes.push({
                     id: item.link,
                     number: 1,
@@ -126,130 +128,197 @@ export default class KodikProvider {
                 });
             }
 
-            // Сортируем серии по возрастанию
             return episodes.sort((a, b) => a.number - b.number);
-
         } catch (e) {
             console.error("Kodik Episodes Error:", e);
             return [];
         }
     }
 
-    // 3. ИЗВЛЕЧЕНИЕ ПРЯМОЙ ССЫЛКИ НА ВИДЕО
-    // Самая сложная часть. Вызывается при нажатии "Play"
-    async getSources(episodeId: string): Promise<VideoSource[]> {
+    async findEpisodeServer(episode: EpisodeDetails, _server: string): Promise<EpisodeServer> {
         try {
-            const playerUrl = episodeId; // В getEpisodes мы сохранили ссылку как ID
-            
-            // ШАГ 1: Загружаем HTML страницы плеера
-            // Важно: если ссылка начинается с //, добавляем https:
-            const fetchUrl = playerUrl.startsWith("//")? "https:" + playerUrl : playerUrl;
-            
-            const response = await fetch(fetchUrl);
-            const html = await response.text();
+            const fetchUrl = episode.id.startsWith("//") ? "https:" + episode.id : episode.id;
+            const html = await this.fetchPlayerPage(fetchUrl);
+            const params = this.parseParameters(html);
+            const subtitles = this.extractSubtitles(html);
+            const links = await this.getStreamLinks(params, fetchUrl);
+            const videoSources = await this.processLinks(links, subtitles);
 
-            // ШАГ 2: Парсим параметры для декодера (d_sign, pd, ref и т.д.)
-            // Kodik прячет их в глобальных переменных JS
-            const domain = html.match(/var domain = "(.*?)";/)?.[1];
-            const d_sign = html.match(/var d_sign = "(.*?)";/)?.[1];
-            const pd = html.match(/var pd = "(.*?)";/)?.[1];
-            const ref = html.match(/var ref = "(.*?)";/)?.[1];
-            const type = html.match(/videoInfo\.type = '(.*?)';/)?.[1]; 
-            const hash = html.match(/videoInfo\.hash = '(.*?)';/)?.[1];
-            const id = html.match(/videoInfo\.id = '(.*?)';/)?.[1];
-
-            if (!domain ||!d_sign ||!pd ||!ref ||!type ||!hash ||!id) {
-                throw new Error("Не удалось найти параметры защиты Kodik (d_sign и др.)");
-            }
-
-            // ШАГ 3: Запрашиваем прямую ссылку у декодера (/gvi)
-            // Это "рукопожатие", которое превращает параметры в ссылку на m3u8
-            const gviUrl = `https://${domain}/gvi`;
-            
-            const postParams = new URLSearchParams();
-            postParams.append("d", domain);
-            postParams.append("d_sign", d_sign);
-            postParams.append("pd", pd);
-            postParams.append("ref", ref);
-            postParams.append("type", type);
-            postParams.append("hash", hash);
-            postParams.append("id", id);
-            // bad_user=true часто помогает избежать некоторых проверок
-            postParams.append("bad_user", "true"); 
-
-            const gviResponse = await fetch(gviUrl, {
-                method: "POST",
+            return {
+                server: _server,
                 headers: {
-                    "Content-Type": "application/x-www-form-urlencoded",
-                    "Referer": fetchUrl, // Обязательный заголовок!
-                    "X-Requested-With": "XMLHttpRequest",
+                    "Referer": "https://kodik.info/",
                     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
                 },
-                body: postParams
-            });
-
-            const gviData = await gviResponse.json();
-            
-            if (!gviData.links) throw new Error("Декодер Kodik не вернул ссылки");
-
-            // ШАГ 4: Формируем ответ для Seanime
-            // Kodik обычно отдает ссылки в формате: links["360" | "480" | "720"].0.src
-            const sources: VideoSource[] = [];
-
-            // Функция-хелпер для декодирования ссылки (иногда Kodik использует rot13 или base64)
-            // В 2024/2025 они часто отдают просто ссылку, но если она выглядит странно, нужно декодировать.
-            // Сейчас gvi обычно возвращает прямую ссылку, если передан правильный d_sign.
-            const processLink = (src: string) => {
-                if (src.startsWith("//")) return "https:" + src;
-                // Добавьте логику декодирования здесь, если Kodik включит шифрование (rot13)
-                // Пример: return src.replace(/[a-zA-Z]/g, (c) => String.fromCharCode((c <= 'Z'? 90 : 122) >= (c = c.charCodeAt(0) + 13)? c : c - 26));
-                return src;
+                videoSources
             };
-
-            // Перебираем качества
-            for (const qualityKey in gviData.links) {
-                const linksArray = gviData.links[qualityKey];
-                if (linksArray && linksArray.length > 0) {
-                    const src = processLink(linksArray[0].src);
-                    
-                    // Пропускаем mp4, ищем m3u8 так как он адаптивный
-                    if (src.includes(".m3u8")) {
-                         sources.push({
-                            url: src,
-                            quality: "auto", // M3U8 сам переключает качество
-                            format: "m3u8",
-                            headers: {
-                                "Referer": "https://kodik.info/", // Критически важно для проигрывания!
-                                "Origin": "https://kodik.info"
-                            }
-                        });
-                        // Нашли m3u8 - выходим, этого достаточно для плеера
-                        break; 
-                    }
-                }
-            }
-            
-            // Если нашли m3u8, возвращаем его
-            if (sources.length > 0) return sources;
-
-            // Если m3u8 нет, собираем MP4 (резервный вариант)
-             for (const qualityKey in gviData.links) {
-                const linksArray = gviData.links[qualityKey];
-                if (linksArray && linksArray.length > 0) {
-                    sources.push({
-                        url: processLink(linksArray[0].src),
-                        quality: qualityKey + "p",
-                        format: "mp4",
-                        headers: { "Referer": "https://kodik.info/" }
-                    });
-                }
-             }
-
-            return sources;
-
         } catch (e) {
             console.error("Kodik GetSources Error:", e);
-            return [];
+            throw new Error(e instanceof Error ? e.message : "Unknown error");
         }
+    }
+
+    private async fetchPlayerPage(url: string): Promise<string> {
+        const response = await fetch(url, {
+            headers: {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            }
+        });
+        if (!response.ok) throw new Error(`Failed to fetch player: ${response.status}`);
+        return response.text();
+    }
+
+    private parseParameters(html: string): KodikParams {
+        const extract = (key: string) => html.match(new RegExp(`var\\s+${key}\\s*=\\s*["']([^"']*)["']`))?.[1];
+        const extractInfo = (key: string) => html.match(new RegExp(`videoInfo\\.${key}\\s*=\\s*["']([^"']*)["']`))?.[1];
+
+        const params: Partial<KodikParams> = {
+            domain: extract("domain"),
+            d_sign: extract("d_sign"),
+            pd: extract("pd"),
+            pd_sign: extract("pd_sign"),
+            ref: extract("ref"),
+            ref_sign: extract("ref_sign"),
+            type: extractInfo("type"),
+            hash: extractInfo("hash"),
+            id: extractInfo("id"),
+        };
+
+        if (!params.domain || !params.d_sign || !params.pd || !params.pd_sign || !params.type || !params.hash || !params.id) {
+            throw new Error("Kodik protection parameters not found");
+        }
+
+        return params as KodikParams;
+    }
+
+    private extractSubtitles(html: string): VideoSubtitle[] {
+        const subtitles: VideoSubtitle[] = [];
+        const trackRegex = /<track[^>]+src=([^ >]+)[^>]*label="([^"]+)"[^>]*srclang="([^"]+)"[^>]*(default)?/gi;
+        let trackMatch;
+        while ((trackMatch = trackRegex.exec(html)) !== null) {
+            const [, src, label, lang, isDefault] = trackMatch;
+            subtitles.push({
+                id: lang,
+                url: src,
+                language: label.replace(/_/g, " ").replace(/\[(.*?)]/g, "($1)").replace(/\s+/g, " ").trim(),
+                isDefault: Boolean(isDefault),
+            });
+        }
+        return subtitles;
+    }
+
+    private async getStreamLinks(params: KodikParams, referer: string): Promise<any> {
+        const ftorUrl = `https://${params.pd}/ftor`;
+        const postParams = new URLSearchParams();
+        postParams.append("d", params.domain);
+        postParams.append("d_sign", params.d_sign);
+        postParams.append("pd", params.pd);
+        postParams.append("pd_sign", params.pd_sign);
+        postParams.append("ref", params.ref || "");
+        postParams.append("ref_sign", params.ref_sign || "");
+        postParams.append("bad_user", "true");
+        postParams.append("cdn_is_working", "true");
+        postParams.append("info", JSON.stringify({ advImps: {} }));
+        postParams.append("type", params.type);
+        postParams.append("hash", params.hash);
+        postParams.append("id", params.id);
+
+        const response = await fetch(ftorUrl, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/x-www-form-urlencoded",
+                "Referer": referer,
+                "X-Requested-With": "XMLHttpRequest",
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            },
+            body: postParams
+        });
+
+        const data = await response.json();
+        if (!data.links) throw new Error("Kodik decoder returned no links");
+        return data.links;
+    }
+
+    private decodeUrl(src: string): string {
+        const rot13 = (str: string) => str.replace(/[a-zA-Z]/g, (char) => {
+            const c = char.charCodeAt(0);
+            const base = c <= 90 ? 90 : 122;
+            return String.fromCharCode(c + 13 <= base ? c + 13 : c - 13);
+        });
+        const isUrl = (s: string) => s.startsWith("//") || s.startsWith("http");
+        const normalize = (s: string) => s.startsWith("//") ? "https:" + s : s;
+
+        if (isUrl(src)) return normalize(src);
+        
+        const r = rot13(src);
+        if (isUrl(r)) return normalize(r);
+
+        try {
+            const b64 = atob(src);
+            if (isUrl(b64)) return normalize(b64);
+        } catch {}
+
+        try {
+            const rb64 = atob(r);
+            if (isUrl(rb64)) return normalize(rb64);
+        } catch {}
+
+        try {
+            const b64r = rot13(atob(src));
+            if (isUrl(b64r)) return normalize(b64r);
+        } catch {}
+
+        return src;
+    }
+
+    private async processLinks(links: any, subtitles: VideoSubtitle[]): Promise<any[]> {
+        const sources: any[] = [];
+        
+        // Find M3U8 first
+        let m3u8Link: string | null = null;
+        for (const key in links) {
+            const arr = links[key];
+            if (arr?.[0]?.src) {
+                const decoded = this.decodeUrl(arr[0].src);
+                if (decoded.includes(".m3u8")) {
+                    m3u8Link = decoded;
+                    break;
+                }
+            }
+        }
+
+        if (m3u8Link) {
+            try {
+                const m3u8Content = await fetch(m3u8Link, { headers: { "Referer": "https://kodik.info/" } }).then(r => r.text());
+                const resolutionRegex = /#EXT-X-STREAM-INF:[^\n]*RESOLUTION=\d+x(\d+)/g;
+                let match;
+                while ((match = resolutionRegex.exec(m3u8Content)) !== null) {
+                    sources.push({
+                        url: m3u8Link,
+                        quality: `${match[1]}p`,
+                        type: "m3u8",
+                        subtitles: subtitles.length ? subtitles : undefined
+                    });
+                }
+            } catch {}
+            
+            if (sources.length === 0) {
+                sources.push({ url: m3u8Link, quality: "auto", type: "m3u8", subtitles: subtitles.length ? subtitles : undefined });
+            }
+        } else {
+            // Fallback to MP4
+            for (const key in links) {
+                const arr = links[key];
+                if (arr?.[0]?.src) {
+                    sources.push({
+                        url: this.decodeUrl(arr[0].src),
+                        quality: key + "p",
+                        type: "mp4",
+                        subtitles: subtitles.length ? subtitles : undefined
+                    });
+                }
+            }
+        }
+        return sources;
     }
 }
