@@ -1,4 +1,3 @@
-"use strict";
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
@@ -35,61 +34,48 @@ var __generator = (this && this.__generator) || function (thisArg, body) {
         if (op[0] & 5) throw op[1]; return { value: op[0] ? op[1] : void 0, done: true };
     }
 };
-Object.defineProperty(exports, "__esModule", { value: true });
-// ----------------------------------------------------------------------
-// КОНФИГУРАЦИЯ
-// ----------------------------------------------------------------------
-var KODIK_TOKEN = "8e329159687fc1a2f5af99a50bf57070"; // Публичный токен (Kodik/AnimeGo)
-var BASE_URL = "https://kodikapi.com";
-var KodikProvider = /** @class */ (function () {
-    function KodikProvider() {
+var Provider = /** @class */ (function () {
+    function Provider() {
+        this.KODIK_TOKEN = "8e329159687fc1a2f5af99a50bf57070";
+        this.BASE_URL = "https://kodikapi.com";
     }
-    // 1. ПОИСК АНИМЕ
-    // Seanime вызывает этот метод, когда пользователь ищет тайтл
-    KodikProvider.prototype.search = function (query) {
+    Provider.prototype.getSettings = function () {
+        return {
+            episodeServers: ["Kodik"],
+            supportsDub: true,
+        };
+    };
+    Provider.prototype.search = function (opts) {
         return __awaiter(this, void 0, void 0, function () {
-            var url, response, data, results, _i, _a, item, displayTitle, e_1;
-            var _b, _c, _d;
-            return __generator(this, function (_e) {
-                switch (_e.label) {
+            var url, response, data, e_1;
+            return __generator(this, function (_a) {
+                switch (_a.label) {
                     case 0:
-                        _e.trys.push([0, 3, , 4]);
-                        url = "".concat(BASE_URL, "/search?token=").concat(KODIK_TOKEN, "&title=").concat(encodeURIComponent(query), "&types=anime,anime-serial&with_material_data=true&limit=20");
+                        _a.trys.push([0, 3, , 4]);
+                        url = "".concat(this.BASE_URL, "/search?token=").concat(this.KODIK_TOKEN, "&title=").concat(encodeURIComponent(opts.query), "&types=anime,anime-serial&with_material_data=true&limit=20");
                         return [4 /*yield*/, fetch(url)];
                     case 1:
-                        response = _e.sent();
+                        response = _a.sent();
                         return [4 /*yield*/, response.json()];
                     case 2:
-                        data = _e.sent();
+                        data = _a.sent();
                         if (!data.results || data.results.length === 0)
                             return [2 /*return*/, []];
-                        results = [];
-                        // Kodik возвращает каждую озвучку как отдельный результат. 
-                        // Это хорошо для Seanime, пользователь выберет нужную озвучку сразу.
-                        for (_i = 0, _a = data.results; _i < _a.length; _i++) {
-                            item = _a[_i];
-                            displayTitle = item.title;
-                            if (item.translation && item.translation.title) {
-                                displayTitle += " [".concat(item.translation.title, "]");
-                            }
-                            results.push({
-                                id: item.id, // ID релиза в базе Kodik (например "serial-12345")
-                                title: displayTitle,
-                                url: item.link, // Ссылка на плеер
-                                cover: ((_b = item.material_data) === null || _b === void 0 ? void 0 : _b.poster_url) || "",
-                                year: item.year,
-                                dubbed: ((_c = item.translation) === null || _c === void 0 ? void 0 : _c.type) === "voice",
-                                subbed: ((_d = item.translation) === null || _d === void 0 ? void 0 : _d.type) === "subtitles",
-                                // Сохраняем важные данные для следующего шага
-                                metadata: {
-                                    shikimori_id: item.shikimori_id,
-                                    link: item.link
+                        return [2 /*return*/, data.results.map(function (item) {
+                                var _a;
+                                var displayTitle = item.title;
+                                if (item.translation && item.translation.title) {
+                                    displayTitle += " [".concat(item.translation.title, "]");
                                 }
-                            });
-                        }
-                        return [2 /*return*/, results];
+                                return {
+                                    id: item.id,
+                                    title: displayTitle,
+                                    url: item.link,
+                                    subOrDub: ((_a = item.translation) === null || _a === void 0 ? void 0 : _a.type) === "voice" ? "dub" : "sub",
+                                };
+                            })];
                     case 3:
-                        e_1 = _e.sent();
+                        e_1 = _a.sent();
                         console.error("Kodik Search Error:", e_1);
                         return [2 /*return*/, []];
                     case 4: return [2 /*return*/];
@@ -97,16 +83,14 @@ var KodikProvider = /** @class */ (function () {
             });
         });
     };
-    // 2. ПОЛУЧЕНИЕ СПИСКА ЭПИЗОДОВ
-    // Вызывается при клике на результат поиска
-    KodikProvider.prototype.getEpisodes = function (id) {
+    Provider.prototype.findEpisodes = function (id) {
         return __awaiter(this, void 0, void 0, function () {
             var url, response, data, item, episodes, seasonNum, season, episodeNum, epLink, e_2;
             return __generator(this, function (_a) {
                 switch (_a.label) {
                     case 0:
                         _a.trys.push([0, 3, , 4]);
-                        url = "".concat(BASE_URL, "/search?token=").concat(KODIK_TOKEN, "&id=").concat(id, "&with_episodes=true");
+                        url = "".concat(this.BASE_URL, "/search?token=").concat(this.KODIK_TOKEN, "&id=").concat(id, "&with_episodes=true");
                         return [4 /*yield*/, fetch(url)];
                     case 1:
                         response = _a.sent();
@@ -117,15 +101,13 @@ var KodikProvider = /** @class */ (function () {
                             return [2 /*return*/, []];
                         item = data.results[0];
                         episodes = [];
-                        // Если это сериал
                         if (item.seasons) {
-                            // Kodik возвращает структуру { "1": { "1": "link", "2": "link" } } (сезон -> серия -> ссылка)
                             for (seasonNum in item.seasons) {
                                 season = item.seasons[seasonNum];
                                 for (episodeNum in season.episodes) {
                                     epLink = season.episodes[episodeNum];
                                     episodes.push({
-                                        id: epLink, // Используем ссылку как ID эпизода, это упростит extract
+                                        id: epLink,
                                         number: parseInt(episodeNum),
                                         title: "\u0421\u0435\u0440\u0438\u044F ".concat(episodeNum),
                                         url: epLink
@@ -133,7 +115,6 @@ var KodikProvider = /** @class */ (function () {
                                 }
                             }
                         }
-                        // Если это фильм
                         else {
                             episodes.push({
                                 id: item.link,
@@ -142,7 +123,6 @@ var KodikProvider = /** @class */ (function () {
                                 url: item.link
                             });
                         }
-                        // Сортируем серии по возрастанию
                         return [2 /*return*/, episodes.sort(function (a, b) { return a.number - b.number; })];
                     case 3:
                         e_2 = _a.sent();
@@ -153,116 +133,233 @@ var KodikProvider = /** @class */ (function () {
             });
         });
     };
-    // 3. ИЗВЛЕЧЕНИЕ ПРЯМОЙ ССЫЛКИ НА ВИДЕО
-    // Самая сложная часть. Вызывается при нажатии "Play"
-    KodikProvider.prototype.getSources = function (episodeId) {
+    Provider.prototype.findEpisodeServer = function (episode, _server) {
         return __awaiter(this, void 0, void 0, function () {
-            var playerUrl, fetchUrl, response, html, domain, d_sign, pd, ref, type, hash, id, gviUrl, postParams, gviResponse, gviData, sources, processLink, qualityKey, linksArray, src, qualityKey, linksArray, e_3;
-            var _a, _b, _c, _d, _e, _f, _g;
-            return __generator(this, function (_h) {
-                switch (_h.label) {
+            var fetchUrl, html, params, subtitles, links, videoSources, e_3;
+            return __generator(this, function (_a) {
+                switch (_a.label) {
                     case 0:
-                        _h.trys.push([0, 5, , 6]);
-                        playerUrl = episodeId;
-                        fetchUrl = playerUrl.startsWith("//") ? "https:" + playerUrl : playerUrl;
-                        return [4 /*yield*/, fetch(fetchUrl)];
+                        _a.trys.push([0, 4, , 5]);
+                        fetchUrl = episode.id.startsWith("//") ? "https:" + episode.id : episode.id;
+                        return [4 /*yield*/, this.fetchPlayerPage(fetchUrl)];
                     case 1:
-                        response = _h.sent();
-                        return [4 /*yield*/, response.text()];
+                        html = _a.sent();
+                        params = this.parseParameters(html);
+                        subtitles = this.extractSubtitles(html);
+                        return [4 /*yield*/, this.getStreamLinks(params, fetchUrl)];
                     case 2:
-                        html = _h.sent();
-                        domain = (_a = html.match(/var domain = "(.*?)";/)) === null || _a === void 0 ? void 0 : _a[1];
-                        d_sign = (_b = html.match(/var d_sign = "(.*?)";/)) === null || _b === void 0 ? void 0 : _b[1];
-                        pd = (_c = html.match(/var pd = "(.*?)";/)) === null || _c === void 0 ? void 0 : _c[1];
-                        ref = (_d = html.match(/var ref = "(.*?)";/)) === null || _d === void 0 ? void 0 : _d[1];
-                        type = (_e = html.match(/videoInfo\.type = '(.*?)';/)) === null || _e === void 0 ? void 0 : _e[1];
-                        hash = (_f = html.match(/videoInfo\.hash = '(.*?)';/)) === null || _f === void 0 ? void 0 : _f[1];
-                        id = (_g = html.match(/videoInfo\.id = '(.*?)';/)) === null || _g === void 0 ? void 0 : _g[1];
-                        if (!domain || !d_sign || !pd || !ref || !type || !hash || !id) {
-                            throw new Error("Не удалось найти параметры защиты Kodik (d_sign и др.)");
-                        }
-                        gviUrl = "https://".concat(domain, "/gvi");
+                        links = _a.sent();
+                        return [4 /*yield*/, this.processLinks(links, subtitles)];
+                    case 3:
+                        videoSources = _a.sent();
+                        return [2 /*return*/, {
+                                server: _server,
+                                headers: {
+                                    "Referer": "https://kodik.info/",
+                                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                                },
+                                videoSources: videoSources
+                            }];
+                    case 4:
+                        e_3 = _a.sent();
+                        console.error("Kodik GetSources Error:", e_3);
+                        throw new Error(e_3 instanceof Error ? e_3.message : "Unknown error");
+                    case 5: return [2 /*return*/];
+                }
+            });
+        });
+    };
+    Provider.prototype.fetchPlayerPage = function (url) {
+        return __awaiter(this, void 0, void 0, function () {
+            var response;
+            return __generator(this, function (_a) {
+                switch (_a.label) {
+                    case 0: return [4 /*yield*/, fetch(url, {
+                            headers: {
+                                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                            }
+                        })];
+                    case 1:
+                        response = _a.sent();
+                        if (!response.ok)
+                            throw new Error("Failed to fetch player: ".concat(response.status));
+                        return [2 /*return*/, response.text()];
+                }
+            });
+        });
+    };
+    Provider.prototype.parseParameters = function (html) {
+        var extract = function (key) { var _a; return (_a = html.match(new RegExp("var\\s+".concat(key, "\\s*=\\s*[\"']([^\"']*)[\"']")))) === null || _a === void 0 ? void 0 : _a[1]; };
+        var extractInfo = function (key) { var _a; return (_a = html.match(new RegExp("videoInfo\\.".concat(key, "\\s*=\\s*[\"']([^\"']*)[\"']")))) === null || _a === void 0 ? void 0 : _a[1]; };
+        var params = {
+            domain: extract("domain"),
+            d_sign: extract("d_sign"),
+            pd: extract("pd"),
+            pd_sign: extract("pd_sign"),
+            ref: extract("ref"),
+            ref_sign: extract("ref_sign"),
+            type: extractInfo("type"),
+            hash: extractInfo("hash"),
+            id: extractInfo("id"),
+        };
+        if (!params.domain || !params.d_sign || !params.pd || !params.pd_sign || !params.type || !params.hash || !params.id) {
+            throw new Error("Kodik protection parameters not found");
+        }
+        return params;
+    };
+    Provider.prototype.extractSubtitles = function (html) {
+        var subtitles = [];
+        var trackRegex = /<track[^>]+src=([^ >]+)[^>]*label="([^"]+)"[^>]*srclang="([^"]+)"[^>]*(default)?/gi;
+        var trackMatch;
+        while ((trackMatch = trackRegex.exec(html)) !== null) {
+            var src = trackMatch[1], label = trackMatch[2], lang = trackMatch[3], isDefault = trackMatch[4];
+            subtitles.push({
+                id: lang,
+                url: src,
+                language: label.replace(/_/g, " ").replace(/\[(.*?)]/g, "($1)").replace(/\s+/g, " ").trim(),
+                isDefault: Boolean(isDefault),
+            });
+        }
+        return subtitles;
+    };
+    Provider.prototype.getStreamLinks = function (params, referer) {
+        return __awaiter(this, void 0, void 0, function () {
+            var ftorUrl, postParams, response, data;
+            return __generator(this, function (_a) {
+                switch (_a.label) {
+                    case 0:
+                        ftorUrl = "https://".concat(params.pd, "/ftor");
                         postParams = new URLSearchParams();
-                        postParams.append("d", domain);
-                        postParams.append("d_sign", d_sign);
-                        postParams.append("pd", pd);
-                        postParams.append("ref", ref);
-                        postParams.append("type", type);
-                        postParams.append("hash", hash);
-                        postParams.append("id", id);
-                        // bad_user=true часто помогает избежать некоторых проверок
+                        postParams.append("d", params.domain);
+                        postParams.append("d_sign", params.d_sign);
+                        postParams.append("pd", params.pd);
+                        postParams.append("pd_sign", params.pd_sign);
+                        postParams.append("ref", params.ref || "");
+                        postParams.append("ref_sign", params.ref_sign || "");
                         postParams.append("bad_user", "true");
-                        return [4 /*yield*/, fetch(gviUrl, {
+                        postParams.append("cdn_is_working", "true");
+                        postParams.append("info", JSON.stringify({ advImps: {} }));
+                        postParams.append("type", params.type);
+                        postParams.append("hash", params.hash);
+                        postParams.append("id", params.id);
+                        return [4 /*yield*/, fetch(ftorUrl, {
                                 method: "POST",
                                 headers: {
                                     "Content-Type": "application/x-www-form-urlencoded",
-                                    "Referer": fetchUrl, // Обязательный заголовок!
+                                    "Referer": referer,
                                     "X-Requested-With": "XMLHttpRequest",
                                     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
                                 },
                                 body: postParams
                             })];
-                    case 3:
-                        gviResponse = _h.sent();
-                        return [4 /*yield*/, gviResponse.json()];
-                    case 4:
-                        gviData = _h.sent();
-                        if (!gviData.links)
-                            throw new Error("Декодер Kodik не вернул ссылки");
-                        sources = [];
-                        processLink = function (src) {
-                            if (src.startsWith("//"))
-                                return "https:" + src;
-                            // Добавьте логику декодирования здесь, если Kodik включит шифрование (rot13)
-                            // Пример: return src.replace(/[a-zA-Z]/g, (c) => String.fromCharCode((c <= 'Z'? 90 : 122) >= (c = c.charCodeAt(0) + 13)? c : c - 26));
-                            return src;
-                        };
-                        // Перебираем качества
-                        for (qualityKey in gviData.links) {
-                            linksArray = gviData.links[qualityKey];
-                            if (linksArray && linksArray.length > 0) {
-                                src = processLink(linksArray[0].src);
-                                // Пропускаем mp4, ищем m3u8 так как он адаптивный
-                                if (src.includes(".m3u8")) {
-                                    sources.push({
-                                        url: src,
-                                        quality: "auto", // M3U8 сам переключает качество
-                                        format: "m3u8",
-                                        headers: {
-                                            "Referer": "https://kodik.info/", // Критически важно для проигрывания!
-                                            "Origin": "https://kodik.info"
-                                        }
-                                    });
-                                    // Нашли m3u8 - выходим, этого достаточно для плеера
-                                    break;
-                                }
-                            }
-                        }
-                        // Если нашли m3u8, возвращаем его
-                        if (sources.length > 0)
-                            return [2 /*return*/, sources];
-                        // Если m3u8 нет, собираем MP4 (резервный вариант)
-                        for (qualityKey in gviData.links) {
-                            linksArray = gviData.links[qualityKey];
-                            if (linksArray && linksArray.length > 0) {
-                                sources.push({
-                                    url: processLink(linksArray[0].src),
-                                    quality: qualityKey + "p",
-                                    format: "mp4",
-                                    headers: { "Referer": "https://kodik.info/" }
-                                });
-                            }
-                        }
-                        return [2 /*return*/, sources];
-                    case 5:
-                        e_3 = _h.sent();
-                        console.error("Kodik GetSources Error:", e_3);
-                        return [2 /*return*/, []];
-                    case 6: return [2 /*return*/];
+                    case 1:
+                        response = _a.sent();
+                        return [4 /*yield*/, response.json()];
+                    case 2:
+                        data = _a.sent();
+                        if (!data.links)
+                            throw new Error("Kodik decoder returned no links");
+                        return [2 /*return*/, data.links];
                 }
             });
         });
     };
-    return KodikProvider;
+    Provider.prototype.decodeUrl = function (src) {
+        var rot13 = function (str) { return str.replace(/[a-zA-Z]/g, function (char) {
+            var c = char.charCodeAt(0);
+            var base = c <= 90 ? 90 : 122;
+            return String.fromCharCode(c + 13 <= base ? c + 13 : c - 13);
+        }); };
+        var isUrl = function (s) { return s.startsWith("//") || s.startsWith("http"); };
+        var normalize = function (s) { return s.startsWith("//") ? "https:" + s : s; };
+        if (isUrl(src))
+            return normalize(src);
+        var r = rot13(src);
+        if (isUrl(r))
+            return normalize(r);
+        try {
+            var b64 = atob(src);
+            if (isUrl(b64))
+                return normalize(b64);
+        }
+        catch (_a) { }
+        try {
+            var rb64 = atob(r);
+            if (isUrl(rb64))
+                return normalize(rb64);
+        }
+        catch (_b) { }
+        try {
+            var b64r = rot13(atob(src));
+            if (isUrl(b64r))
+                return normalize(b64r);
+        }
+        catch (_c) { }
+        return src;
+    };
+    Provider.prototype.processLinks = function (links, subtitles) {
+        return __awaiter(this, void 0, void 0, function () {
+            var sources, m3u8Link, key, arr, decoded, m3u8Content, resolutionRegex, match, _a, key, arr;
+            var _b, _c;
+            return __generator(this, function (_d) {
+                switch (_d.label) {
+                    case 0:
+                        sources = [];
+                        m3u8Link = null;
+                        for (key in links) {
+                            arr = links[key];
+                            if ((_b = arr === null || arr === void 0 ? void 0 : arr[0]) === null || _b === void 0 ? void 0 : _b.src) {
+                                decoded = this.decodeUrl(arr[0].src);
+                                if (decoded.includes(".m3u8")) {
+                                    m3u8Link = decoded;
+                                    break;
+                                }
+                            }
+                        }
+                        if (!m3u8Link) return [3 /*break*/, 5];
+                        _d.label = 1;
+                    case 1:
+                        _d.trys.push([1, 3, , 4]);
+                        return [4 /*yield*/, fetch(m3u8Link, { headers: { "Referer": "https://kodik.info/" } }).then(function (r) { return r.text(); })];
+                    case 2:
+                        m3u8Content = _d.sent();
+                        resolutionRegex = /#EXT-X-STREAM-INF:[^\n]*RESOLUTION=\d+x(\d+)/g;
+                        match = void 0;
+                        while ((match = resolutionRegex.exec(m3u8Content)) !== null) {
+                            sources.push({
+                                url: m3u8Link,
+                                quality: "".concat(match[1], "p"),
+                                type: "m3u8",
+                                subtitles: subtitles.length ? subtitles : undefined
+                            });
+                        }
+                        return [3 /*break*/, 4];
+                    case 3:
+                        _a = _d.sent();
+                        return [3 /*break*/, 4];
+                    case 4:
+                        if (sources.length === 0) {
+                            sources.push({ url: m3u8Link, quality: "auto", type: "m3u8", subtitles: subtitles.length ? subtitles : undefined });
+                        }
+                        return [3 /*break*/, 6];
+                    case 5:
+                        // Fallback to MP4
+                        for (key in links) {
+                            arr = links[key];
+                            if ((_c = arr === null || arr === void 0 ? void 0 : arr[0]) === null || _c === void 0 ? void 0 : _c.src) {
+                                sources.push({
+                                    url: this.decodeUrl(arr[0].src),
+                                    quality: key + "p",
+                                    type: "mp4",
+                                    subtitles: subtitles.length ? subtitles : undefined
+                                });
+                            }
+                        }
+                        _d.label = 6;
+                    case 6: return [2 /*return*/, sources];
+                }
+            });
+        });
+    };
+    return Provider;
 }());
-exports.default = KodikProvider;
