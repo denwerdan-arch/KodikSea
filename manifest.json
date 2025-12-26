@@ -1,6 +1,6 @@
 {
-  "id": "ru.seanime.anilibria",
-  "name": "Anilibria (RU)",
+  "id": "RuSeanimeAnilibria",
+  "name": "AnilibriaRU",
   "version": "0.1.0",
   "manifestURI": "https://raw.githubusercontent.com/denwerdan-arch/KodikSea/main/manifest.json",
   "language": "typescript",
@@ -13,3 +13,4 @@
   "payloadURI": "https://raw.githubusercontent.com/denwerdan-arch/KodikSea/main/anilibria.ts",
   "isDevelopment": true
 }
+
