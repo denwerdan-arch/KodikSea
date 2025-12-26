@@ -2,7 +2,7 @@
   "id": "ru.seanime.anilibria",
   "name": "Anilibria (RU)",
   "version": "0.1.0",
-  "manifestURI": "https://raw.githubusercontent.com/denwerdan-arch/KodikSea/refs/heads/main/manifest.json",
+  "manifestURI": "https://raw.githubusercontent.com/denwerdan-arch/KodikSea/main/manifest.json",
   "language": "typescript",
   "type": "online-streaming-provider",
   "description": "Просмотр аниме через API Anilibria v3",
@@ -10,6 +10,6 @@
   "icon": "https://anilibria.tv/img/logo.png",
   "website": "https://anilibria.tv",
   "lang": "ru",
-  "payloadURI": "https://raw.githubusercontent.com/denwerdan-arch/KodikSea/refs/heads/main/anilibria.ts",
+  "payloadURI": "https://raw.githubusercontent.com/denwerdan-arch/KodikSea/main/anilibria.ts",
   "isDevelopment": true
 }
