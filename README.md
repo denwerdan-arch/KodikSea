@@ -1,2 +1,2 @@
 # KodikSea
-Просмотр аниме через API Anilibria v3
+Смотрите аниме через базу Kodik (Anilibria, SHIZA, AnimeGo и др.)
