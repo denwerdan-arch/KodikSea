@@ -1,21 +1,15 @@
 {
-  "id": "RuSeanimeAnimeGo",
-  "name": "AnimeGo(RU)",
+  "id": "RuSeanimeKodik",
+  "name": "Kodik(RU)",
   "version": "1.0.0",
   "manifestURI": "https://raw.githubusercontent.com/denwerdan-arch/KodikSea/main/manifest.json",
   "language": "typescript",
   "type": "onlinestream-provider",
-  "description": "Смотрите аниме через базу AnimeGo",
+  "description": "Смотрите аниме через базу Kodik (Anilibria, SHIZA, AnimeGo и др.)",
   "author": "Dead_wall",
-  "icon": "https://github.com/denwerdan-arch/KodikSea/blob/5fb1845e79aa3de5f8bbbaf155e60ba3d0a0e216/start-menu-icon%201_color.png",
-  "website": "https://animego.me",
+  "icon": "https://github.com/denwerdan-arch/KodikSea/blob/main/start-menu-icon%201_color.png",
+  "website": "https://kodik.info",
   "lang": "ru",
   "payloadURI": "https://github.com/denwerdan-arch/KodikSea/raw/refs/heads/main/Kodik.ts",
   "isDevelopment": false
 }
-
-
-
-
-
-
