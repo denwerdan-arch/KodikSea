@@ -1,7 +1,7 @@
 {
-  "id": "RuSeanimeKodik",
-  "name": "Kodik(RU)",
-  "version": "1.0.0",
+  "id": "kodik-fix-seanime-v2",
+  "name": "KodikRU",
+  "version": "2.1.0",
   "manifestURI": "https://raw.githubusercontent.com/denwerdan-arch/KodikSea/main/manifest.json",
   "language": "typescript",
   "type": "onlinestream-provider",
@@ -13,3 +13,4 @@
   "payloadURI": "https://github.com/denwerdan-arch/KodikSea/raw/refs/heads/main/Kodik.ts",
   "isDevelopment": false
 }
+
